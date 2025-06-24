@@ -533,8 +533,8 @@
         registerBtn.addEventListener('click', async () => {
             const regName = document.getElementById('regName').value.trim();
             const regEmail = document.getElementById('regEmail').value.trim();
-            const regPassword = document.getElementById('regPassword').value;
-            const regConfirmPassword = document.getElementById('regConfirmPassword').value;
+            const regPassword = document.getElementById('regPassword').value.trim(); // Se añadió .trim()
+            const regConfirmPassword = document.getElementById('regConfirmPassword').value.trim(); // Se añadió .trim()
             const regLocation = document.getElementById('regLocation').value.trim();
 
             // Mostrar spinner y deshabilitar botón
