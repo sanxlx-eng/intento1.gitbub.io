@@ -452,7 +452,11 @@
                 item.classList.remove('active');
             });
             if (pageId !== 'loginPage') {
-                 document.querySelector(`.nav-item[data-page="${pageId}"]`).classList.add('active');
+                 // Asegurarse de que el elemento existe antes de intentar acceder a dataset
+                 const navItemForPage = document.querySelector(`.nav-item[data-page="${pageId}"]`);
+                 if (navItemForPage) {
+                    navItemForPage.classList.add('active');
+                 }
                  document.querySelector('.nav-bar').style.display = 'flex'; // Asegura que la nav-bar sea visible
             } else {
                 document.querySelector('.nav-bar').style.display = 'none'; // Oculta la nav-bar en la página de login
@@ -469,9 +473,12 @@
                 currentUserId = user.uid;
                 console.log("Usuario autenticado:", currentUserId);
                 // Intentar cargar la información del perfil del usuario
-                await loadUserProfile(currentUserId);
-                // Una vez autenticado, mostrar la página de login para registro o inicio de sesión
-                showPage('loginPage');
+                const profileExists = await loadUserProfile(currentUserId);
+                if (profileExists) {
+                    showPage('homePage'); // Si ya tiene perfil, va a inicio
+                } else {
+                    showPage('loginPage'); // Si es nuevo o no tiene perfil, va a registro
+                }
             } else {
                 console.log("No hay usuario autenticado, iniciando sesión anónimamente...");
                 try {
@@ -485,6 +492,7 @@
                     console.error("Error al autenticar:", error);
                     errorMessage.textContent = `Error de autenticación: ${error.message}`;
                     errorModal.classList.add('show');
+                    showPage('loginPage'); // Fallback a login si falla la autenticación
                 }
             }
         });
@@ -500,10 +508,12 @@
                     createdAt: new Date()
                 }, { merge: true }); // Usar merge para no sobrescribir otros campos si los hubiera
                 console.log("Perfil guardado en Firestore:", userId);
+                return true; // Indica éxito
             } catch (error) {
                 console.error("Error al guardar el perfil en Firestore:", error);
                 errorMessage.textContent = `Error al guardar perfil: ${error.message}`;
                 errorModal.classList.add('show');
+                return false; // Indica fallo
             }
         }
 
@@ -518,14 +528,17 @@
                     userEmail = data.email || "usuario@example.com";
                     userLocation = data.location || "Ubicación no definida";
                     console.log("Perfil cargado desde Firestore:", data);
+                    updateProfileInfo(); // Actualiza la UI con los datos cargados
+                    return true; // Perfil encontrado
                 } else {
                     console.log("No se encontró perfil para este usuario. Usando valores por defecto o los ingresados en el registro.");
+                    return false; // No perfil encontrado
                 }
-                updateProfileInfo(); // Actualiza la UI con los datos cargados o por defecto
             } catch (error) {
                 console.error("Error al cargar el perfil desde Firestore:", error);
                 errorMessage.textContent = `Error al cargar perfil: ${error.message}`;
                 errorModal.classList.add('show');
+                return false; // Error al cargar
             }
         }
 
@@ -533,8 +546,8 @@
         registerBtn.addEventListener('click', async () => {
             const regName = document.getElementById('regName').value.trim();
             const regEmail = document.getElementById('regEmail').value.trim();
-            const regPassword = document.getElementById('regPassword').value.trim(); // Se añadió .trim()
-            const regConfirmPassword = document.getElementById('regConfirmPassword').value.trim(); // Se añadió .trim()
+            const regPassword = document.getElementById('regPassword').value.trim();
+            const regConfirmPassword = document.getElementById('regConfirmPassword').value.trim();
             const regLocation = document.getElementById('regLocation').value.trim();
 
             // Mostrar spinner y deshabilitar botón
@@ -555,24 +568,24 @@
                     throw new Error("Las contraseñas no coinciden.");
                 }
 
-                // Aquí, como no usamos Auth con email/password directamente para este prototipo,
-                // guardamos los datos del perfil directamente después de asegurarnos de tener un UID (autenticación anónima).
                 if (!currentUserId) {
                     console.error("No hay ID de usuario. Asegúrate de que Firebase Auth se inicialice correctamente.");
                     throw new Error("No se pudo obtener ID de usuario para el registro.");
                 }
 
                 // Guardar la información del usuario en Firestore
-                await saveUserProfile(currentUserId, regName, regEmail, regLocation);
+                const saveSuccess = await saveUserProfile(currentUserId, regName, regEmail, regLocation);
 
-                // Actualizar las variables globales del usuario y la UI
-                userName = regName;
-                userEmail = regEmail;
-                userLocation = regLocation;
-                updateProfileInfo();
-
-                // Navegar a la página principal
-                showPage('homePage');
+                if (saveSuccess) {
+                    // Si el guardado fue exitoso, actualiza las variables y navega
+                    userName = regName;
+                    userEmail = regEmail;
+                    userLocation = regLocation;
+                    updateProfileInfo();
+                    showPage('homePage');
+                } else {
+                    throw new Error("No se pudo guardar el perfil del usuario.");
+                }
 
             } catch (error) {
                 console.error("Error durante el registro:", error);
@@ -589,11 +602,9 @@
         // Evento para el enlace de "Iniciar sesión" (simulado)
         document.getElementById('loginLink').addEventListener('click', async (e) => {
             e.preventDefault();
-            // Simular un inicio de sesión que simplemente carga el perfil existente
-            // En un app real, esto validaría credenciales y luego cargaría el perfil.
             if (currentUserId) {
-                await loadUserProfile(currentUserId); // Cargar datos del usuario existente
-                showPage('homePage'); // Navegar a la página principal
+                await loadUserProfile(currentUserId);
+                showPage('homePage');
             } else {
                 errorMessage.textContent = "Error: No hay un usuario autenticado para iniciar sesión. Por favor, regístrate.";
                 errorModal.classList.add('show');
@@ -642,6 +653,7 @@
         });
 
         // La página de login se muestra por defecto al inicializar el usuario en onAuthStateChanged
+        // No hay necesidad de llamar showPage('loginPage') aquí al final, ya lo maneja onAuthStateChanged.
     </script>
 </body>
 </html>
