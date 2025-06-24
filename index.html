@@ -122,7 +122,7 @@
             flex-direction: column;
             gap: 20px;
         }
-        /* Estilos para el spinner de carga */
+        /* Estilos para el spinner de carga (aunque ya no se use, se mantiene si no molesta) */
         .spinner {
             border: 4px solid rgba(0, 0, 0, 0.1);
             border-left-color: #10B981;
@@ -382,29 +382,14 @@
     <!-- Incluye Lucide Icons para los iconos -->
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 
-    <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Variables globales de Firebase (serán inyectadas por el entorno Canvas)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { /* Añade una configuración de Firebase de prueba si necesitas probar fuera de Canvas */ };
-
-        // Inicializar Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-
-        let currentUserId = null; // Para almacenar el ID del usuario actual
-
-        // Variables para almacenar la información del usuario
+    <!-- Script principal de la aplicación -->
+    <script>
+        // Variables para almacenar la información del usuario (ahora globales simples)
         let userName = "Usuario"; // Valor por defecto
         let userEmail = "usuario@example.com"; // Valor por defecto
         let userLocation = "Ubicación no definida"; // Valor por defecto
 
-        // Obtener elementos del DOM (movidos dentro del módulo)
+        // Obtener elementos del DOM
         const sendRequestBtn = document.getElementById('sendRequestBtn');
         const confirmationModal = document.getElementById('confirmationModal');
         const closeModalBtn = document.getElementById('closeModalBtn');
@@ -425,10 +410,10 @@
         const profileLocationElement = document.getElementById('profileLocation');
         const profilePicElement = document.getElementById('profilePic');
 
-        // Función para inicializar los iconos de Lucide (movido dentro del módulo)
+        // Función para inicializar los iconos de Lucide
         lucide.createIcons();
 
-        // Función para actualizar la información del perfil en la UI (movido dentro del módulo)
+        // Función para actualizar la información del perfil en la UI
         function updateProfileInfo() {
             welcomeNameElement.textContent = `¡Hola, ${userName}!`;
             profileEmailElement.textContent = userEmail;
@@ -441,7 +426,7 @@
             }
         }
 
-        // Función para mostrar una página específica y actualizar la navegación (movido dentro del módulo)
+        // Función para mostrar una página específica y actualizar la navegación
         function showPage(pageId) {
             pages.forEach(page => {
                 page.classList.remove('active');
@@ -452,7 +437,6 @@
                 item.classList.remove('active');
             });
             if (pageId !== 'loginPage') {
-                 // Asegurarse de que el elemento existe antes de intentar acceder a dataset
                  const navItemForPage = document.querySelector(`.nav-item[data-page="${pageId}"]`);
                  if (navItemForPage) {
                     navItemForPage.classList.add('active');
@@ -467,148 +451,61 @@
             }
         }
 
-        // Función para manejar el estado de autenticación (manteniendo la lógica de carga del perfil)
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                currentUserId = user.uid;
-                console.log("Usuario autenticado:", currentUserId);
-                // Intentar cargar la información del perfil del usuario
-                const profileExists = await loadUserProfile(currentUserId);
-                if (profileExists) {
-                    showPage('homePage'); // Si ya tiene perfil, va a inicio
-                } else {
-                    showPage('loginPage'); // Si es nuevo o no tiene perfil, va a registro
-                }
-            } else {
-                console.log("No hay usuario autenticado, iniciando sesión anónimamente...");
-                try {
-                    // Si no hay token inicial, intenta el inicio de sesión anónimo
-                    if (typeof __initial_auth_token === 'undefined') {
-                        await signInAnonymously(auth);
-                    } else { // Si hay token inicial (del entorno Canvas), úsalo
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    }
-                } catch (error) {
-                    console.error("Error al autenticar:", error);
-                    errorMessage.textContent = `Error de autenticación: ${error.message}`;
-                    errorModal.classList.add('show');
-                    showPage('loginPage'); // Fallback a login si falla la autenticación
-                }
-            }
-        });
-
-        // Función para guardar el perfil del usuario en Firestore
-        async function saveUserProfile(userId, name, email, location) {
-            const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile/user_data`);
-            try {
-                await setDoc(userDocRef, {
-                    name: name,
-                    email: email,
-                    location: location,
-                    createdAt: new Date()
-                }, { merge: true }); // Usar merge para no sobrescribir otros campos si los hubiera
-                console.log("Perfil guardado en Firestore:", userId);
-                return true; // Indica éxito
-            } catch (error) {
-                console.error("Error al guardar el perfil en Firestore:", error);
-                errorMessage.textContent = `Error al guardar perfil: ${error.message}`;
-                errorModal.classList.add('show');
-                return false; // Indica fallo
-            }
-        }
-
-        // Función para cargar el perfil del usuario desde Firestore
-        async function loadUserProfile(userId) {
-            const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile/user_data`);
-            try {
-                const docSnap = await getDoc(userDocRef);
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    userName = data.name || "Usuario";
-                    userEmail = data.email || "usuario@example.com";
-                    userLocation = data.location || "Ubicación no definida";
-                    console.log("Perfil cargado desde Firestore:", data);
-                    updateProfileInfo(); // Actualiza la UI con los datos cargados
-                    return true; // Perfil encontrado
-                } else {
-                    console.log("No se encontró perfil para este usuario. Usando valores por defecto o los ingresados en el registro.");
-                    return false; // No perfil encontrado
-                }
-            } catch (error) {
-                console.error("Error al cargar el perfil desde Firestore:", error);
-                errorMessage.textContent = `Error al cargar perfil: ${error.message}`;
-                errorModal.classList.add('show');
-                return false; // Error al cargar
-            }
-        }
-
-        // --- Evento para el botón de registro ---
-        registerBtn.addEventListener('click', async () => {
+        // --- Evento para el botón de registro (simulado sin Firebase) ---
+        registerBtn.addEventListener('click', () => {
             const regName = document.getElementById('regName').value.trim();
             const regEmail = document.getElementById('regEmail').value.trim();
             const regPassword = document.getElementById('regPassword').value.trim();
             const regConfirmPassword = document.getElementById('regConfirmPassword').value.trim();
             const regLocation = document.getElementById('regLocation').value.trim();
 
-            // Mostrar spinner y deshabilitar botón
+            // Mostrar spinner (simulado, se ocultará rápido)
             registerBtnText.classList.add('hidden');
             registerSpinner.classList.remove('hidden');
             registerBtn.disabled = true;
 
-            try {
-                if (!regName || !regEmail || !regPassword || !regConfirmPassword || !regLocation) {
-                    throw new Error("Por favor, completa todos los campos.");
-                }
+            // Simulación de un pequeño retraso para el spinner
+            setTimeout(() => {
+                try {
+                    if (!regName || !regEmail || !regPassword || !regConfirmPassword || !regLocation) {
+                        throw new Error("Por favor, completa todos los campos.");
+                    }
 
-                if (regPassword.length < 6) {
-                    throw new Error("La contraseña debe tener al menos 6 caracteres.");
-                }
+                    if (regPassword.length < 6) {
+                        throw new Error("La contraseña debe tener al menos 6 caracteres.");
+                    }
 
-                if (regPassword !== regConfirmPassword) {
-                    throw new Error("Las contraseñas no coinciden.");
-                }
+                    if (regPassword !== regConfirmPassword) {
+                        throw new Error("Las contraseñas no coinciden.");
+                    }
 
-                if (!currentUserId) {
-                    console.error("No hay ID de usuario. Asegúrate de que Firebase Auth se inicialice correctamente.");
-                    throw new Error("No se pudo obtener ID de usuario para el registro.");
-                }
-
-                // Guardar la información del usuario en Firestore
-                const saveSuccess = await saveUserProfile(currentUserId, regName, regEmail, regLocation);
-
-                if (saveSuccess) {
-                    // Si el guardado fue exitoso, actualiza las variables y navega
+                    // Si el registro es "exitoso" (simulado), actualiza las variables globales y navega
                     userName = regName;
                     userEmail = regEmail;
                     userLocation = regLocation;
-                    updateProfileInfo();
-                    showPage('homePage');
-                } else {
-                    throw new Error("No se pudo guardar el perfil del usuario.");
-                }
+                    updateProfileInfo(); // Actualiza la UI con los nuevos datos
+                    showPage('homePage'); // Navega a la página principal
 
-            } catch (error) {
-                console.error("Error durante el registro:", error);
-                errorMessage.textContent = `Error de registro: ${error.message}`;
-                errorModal.classList.add('show');
-            } finally {
-                // Ocultar spinner y habilitar botón
-                registerBtnText.classList.remove('hidden');
-                registerSpinner.classList.add('hidden');
-                registerBtn.disabled = false;
-            }
+                } catch (error) {
+                    console.error("Error durante el registro:", error);
+                    errorMessage.textContent = `Error de registro: ${error.message}`;
+                    errorModal.classList.add('show');
+                } finally {
+                    // Ocultar spinner y habilitar botón
+                    registerBtnText.classList.remove('hidden');
+                    registerSpinner.classList.add('hidden');
+                    registerBtn.disabled = false;
+                }
+            }, 500); // Pequeño retraso para simular un proceso
         });
 
         // Evento para el enlace de "Iniciar sesión" (simulado)
-        document.getElementById('loginLink').addEventListener('click', async (e) => {
+        document.getElementById('loginLink').addEventListener('click', (e) => {
             e.preventDefault();
-            if (currentUserId) {
-                await loadUserProfile(currentUserId);
-                showPage('homePage');
-            } else {
-                errorMessage.textContent = "Error: No hay un usuario autenticado para iniciar sesión. Por favor, regístrate.";
-                errorModal.classList.add('show');
-            }
+            // Simular un "login" que simplemente muestra la página de inicio.
+            // Para fines de este prototipo, no hay validación real de credenciales.
+            showPage('homePage'); // Siempre va a la página de inicio si se intenta "iniciar sesión"
+            updateProfileInfo(); // Asegurarse de que el perfil muestre los datos actuales (aunque sean por defecto)
         });
 
 
@@ -652,8 +549,8 @@
             });
         });
 
-        // La página de login se muestra por defecto al inicializar el usuario en onAuthStateChanged
-        // No hay necesidad de llamar showPage('loginPage') aquí al final, ya lo maneja onAuthStateChanged.
+        // Mostrar la página de login por defecto al cargar la app
+        showPage('loginPage');
     </script>
 </body>
 </html>
